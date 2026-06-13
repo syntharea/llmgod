@@ -27,3 +27,24 @@ export function listWorkflows(dirs, fs) {
   }
   return out;
 }
+
+export function validName(name) {
+  return typeof name === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
+}
+
+// A runnable starter the user fills in. The TODOs are intentional scaffold
+// content for the end user, not plan placeholders.
+export function scaffoldWorkflow(name) {
+  return [
+    "export const meta = {",
+    "  name: '" + name + "',",
+    "  description: 'TODO: one-line description of " + name + "',",
+    "  phases: [{ title: 'Main' }],",
+    "}",
+    "",
+    "phase('Main')",
+    "const result = await agent('TODO: describe the task for this agent')",
+    "return { result }",
+    "",
+  ].join("\n");
+}

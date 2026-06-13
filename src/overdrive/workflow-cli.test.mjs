@@ -46,3 +46,21 @@ test("listWorkflows skips missing dirs and non-.js files", () => {
   const rows = listWorkflows([{ scope: "user", path: "/u/wf" }, { scope: "project", path: "/nope" }], fs);
   expect(rows.map((r) => r.name)).toEqual(["a"]);
 });
+
+import { scaffoldWorkflow, validName } from "./workflow-cli.mjs";
+
+test("validName accepts kebab/alnum, rejects path-y or empty", () => {
+  expect(validName("review")).toBe(true);
+  expect(validName("my-flow_2")).toBe(true);
+  expect(validName("")).toBe(false);
+  expect(validName("../evil")).toBe(false);
+  expect(validName("a/b")).toBe(false);
+});
+
+test("scaffoldWorkflow emits a runnable skeleton with a pure-literal meta", () => {
+  const s = scaffoldWorkflow("demo");
+  expect(s).toContain("export const meta = {");
+  expect(s).toContain("name: 'demo'");
+  expect(s).toContain("await agent(");
+  expect(s).toContain("phase(");
+});
