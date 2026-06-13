@@ -523,7 +523,8 @@ Append:
 ```js
 test("cli.cjs wires the workflow subcommand + library seeding", () => {
   expect(sh).toContain("process.argv[2] === 'workflow'");
-  expect(sh).toContain("seedLibrary(");
+  // Assert the wrapper CALL SITE, not the embedded module's own `seedLibrary` definition.
+  expect(sh).toContain("seedLibrary(join(homedir(), '.claude', 'workflows')");
 });
 ```
 

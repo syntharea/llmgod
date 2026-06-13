@@ -28,7 +28,9 @@ test("cli.cjs wires limits env, probe, and xray dispatch", () => {
 
 test("cli.cjs wires the workflow subcommand + library seeding", () => {
   expect(sh).toContain("process.argv[2] === 'workflow'");
-  expect(sh).toContain("seedLibrary(");
+  // Assert the wrapper CALL SITE, not the embedded module's own definition
+  // (`export function seedLibrary(...)`) — otherwise dropping the wiring still passes.
+  expect(sh).toContain("seedLibrary(join(homedir(), '.claude', 'workflows')");
 });
 
 test("patch.mjs includes the confirmed OVERDRIVE L3 patches", () => {

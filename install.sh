@@ -1272,7 +1272,7 @@ if (process.argv[2] === 'xray') {
 // Studio: `llmgod workflow <sub>` library manager — handle before launch, then exit.
 if (process.argv[2] === 'workflow') {
   const r = spawnSync(process.execPath, [join(llmgodDir, 'overdrive', 'workflow-cli.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
-  process.exit(r.status ?? 0);
+  process.exit(r.status ?? (r.signal ? 1 : 0));
 }
 
 // Note: there used to be a "drift detection" block here that scanned
