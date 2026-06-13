@@ -8,7 +8,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const MODULES = ["pricing.mjs", "metering.mjs", "probe.mjs", "statusline.mjs", "panel.mjs", "limits-env.mjs"];
+const MODULES = ["pricing.mjs", "metering.mjs", "probe.mjs", "statusline.mjs", "panel.mjs", "limits-env.mjs", "workflow-cli.mjs", "workflow-library.mjs"];
 
 function block() {
   const out = ["# (regenerate with: node scripts/embed-overdrive.mjs)"];

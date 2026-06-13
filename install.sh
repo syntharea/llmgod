@@ -1079,6 +1079,177 @@ export function limitEnv(limits = {}, env = {}) {
 }
 // <<< OVERDRIVE limits-env.mjs <<<
 OVERDRIVE_LIMITS_ENV_MJS_EOF
+cat > "$LLMGOD_DIR/overdrive/workflow-cli.mjs" << 'OVERDRIVE_WORKFLOW_CLI_MJS_EOF'
+// >>> OVERDRIVE workflow-cli.mjs >>>
+// src/overdrive/workflow-cli.mjs
+import { join } from "path";
+
+// Extract { name, description } from a workflow file's `export const meta = {...}`.
+// Defensive regex (does not execute the file); returns null when there is no name.
+export function parseWorkflowMeta(source) {
+  if (typeof source !== "string") return null;
+  const name = source.match(/name\s*:\s*['"]([^'"]+)['"]/);
+  if (!name) return null;
+  const desc = source.match(/description\s*:\s*['"]([^'"]+)['"]/);
+  return { name: name[1], description: desc ? desc[1] : "" };
+}
+
+// dirs: [{ scope, path }]; fs: { existsSync, readdirSync, readFileSync }.
+// Returns [{ name, description, scope, path }] for every *.js workflow found.
+export function listWorkflows(dirs, fs) {
+  const out = [];
+  for (const { scope, path } of dirs) {
+    if (!fs.existsSync(path)) continue;
+    for (const f of fs.readdirSync(path)) {
+      if (!f.endsWith(".js")) continue;
+      const full = join(path, f);
+      let meta = null;
+      try { meta = parseWorkflowMeta(fs.readFileSync(full, "utf8")); } catch {}
+      out.push({ name: meta?.name ?? f.replace(/\.js$/, ""), description: meta?.description ?? "", scope, path: full });
+    }
+  }
+  return out;
+}
+
+export function validName(name) {
+  return typeof name === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
+}
+
+// A runnable starter the user fills in. The TODOs are intentional scaffold
+// content for the end user, not plan placeholders.
+export function scaffoldWorkflow(name) {
+  return [
+    "export const meta = {",
+    "  name: '" + name + "',",
+    "  description: 'TODO: one-line description of " + name + "',",
+    "  phases: [{ title: 'Main' }],",
+    "}",
+    "",
+    "phase('Main')",
+    "const result = await agent('TODO: describe the task for this agent')",
+    "return { result }",
+    "",
+  ].join("\n");
+}
+
+const USAGE = [
+  "llmgod workflow — manage the Claude Code workflow library",
+  "",
+  "  ls                list user + project workflows",
+  "  new <name>        scaffold ~/.claude/workflows/<name>.js",
+  "  rm  <name>        remove ~/.claude/workflows/<name>.js",
+  "",
+  "Run a workflow from inside Claude Code with: Workflow({ name: '<name>' })",
+  "",
+].join("\n");
+
+// deps: { argv (after 'workflow'), homeDir, cwd, out, err, fs }. Returns exit code.
+export function runWorkflowCli({ argv, homeDir, cwd, out, err, fs }) {
+  const userDir = join(homeDir, ".claude", "workflows");
+  const projDir = join(cwd, ".claude", "workflows");
+  const [sub, arg] = argv;
+
+  if (sub === "ls") {
+    const rows = listWorkflows([{ scope: "user", path: userDir }, { scope: "project", path: projDir }], fs);
+    if (!rows.length) { out("(no workflows; create one with: llmgod workflow new <name>)\n"); return 0; }
+    for (const r of rows) out(`${r.name}\t[${r.scope}]\t${r.description}\n`);
+    return 0;
+  }
+
+  if (sub === "new") {
+    if (!validName(arg)) { err("invalid name: " + arg + "\n"); return 1; }
+    const p = join(userDir, arg + ".js");
+    if (fs.existsSync(p)) { err("exists: " + p + "\n"); return 1; }
+    if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(p, scaffoldWorkflow(arg));
+    out("created " + p + "\n");
+    return 0;
+  }
+
+  if (sub === "rm") {
+    if (!validName(arg)) { err("invalid name: " + arg + "\n"); return 1; }
+    const p = join(userDir, arg + ".js");
+    if (!fs.existsSync(p)) { err("not found: " + p + "\n"); return 1; }
+    fs.unlinkSync(p);
+    out("removed " + p + "\n");
+    return 0;
+  }
+
+  out(USAGE);
+  return 0;
+}
+
+if (import.meta.main) {
+  const fs = await import("fs");
+  const os = await import("os");
+  const code = runWorkflowCli({
+    argv: process.argv.slice(2),
+    homeDir: os.homedir(),
+    cwd: process.cwd(),
+    out: (s) => process.stdout.write(s),
+    err: (s) => process.stderr.write(s),
+    fs,
+  });
+  process.exit(code);
+}
+// <<< OVERDRIVE workflow-cli.mjs <<<
+OVERDRIVE_WORKFLOW_CLI_MJS_EOF
+cat > "$LLMGOD_DIR/overdrive/workflow-library.mjs" << 'OVERDRIVE_WORKFLOW_LIBRARY_MJS_EOF'
+// >>> OVERDRIVE workflow-library.mjs >>>
+// src/overdrive/workflow-library.mjs
+import { join } from "path";
+
+// Curated starter workflows seeded into ~/.claude/workflows/ (never-clobber).
+// IMPORTANT: keep each `source` free of backticks and ${ } so it survives being
+// stored in this module's string array AND embedded into install.sh's
+// single-quoted heredoc unchanged.
+const REVIEW = [
+  "export const meta = {",
+  "  name: 'review',",
+  "  description: 'Review the git diff across dimensions, then adversarially verify each finding',",
+  "  phases: [{ title: 'Review' }, { title: 'Verify' }],",
+  "}",
+  "",
+  "const DIMENSIONS = [",
+  "  { key: 'bugs', prompt: 'Run: git diff. Find correctness bugs in the diff. Return concrete findings.' },",
+  "  { key: 'security', prompt: 'Run: git diff. Find security issues in the diff. Return concrete findings.' },",
+  "]",
+  "",
+  "const FINDINGS = { type: 'object', properties: { findings: { type: 'array', items: {",
+  "  type: 'object', properties: { title: { type: 'string' }, detail: { type: 'string' } }, required: ['title','detail'] } } }, required: ['findings'] }",
+  "const VERDICT = { type: 'object', properties: { isReal: { type: 'boolean' }, reason: { type: 'string' } }, required: ['isReal','reason'] }",
+  "",
+  "const results = await pipeline(",
+  "  DIMENSIONS,",
+  "  (d) => agent(d.prompt, { label: 'review:' + d.key, phase: 'Review', schema: FINDINGS }),",
+  "  (review, d) => parallel((review.findings || []).map((f) => () =>",
+  "    agent('Adversarially verify; default isReal=false if unsure: ' + f.title + ' -- ' + f.detail,",
+  "      { label: 'verify:' + d.key, phase: 'Verify', schema: VERDICT }).then((v) => ({ ...f, dimension: d.key, verdict: v })))),",
+  ")",
+  "const confirmed = results.flat().filter(Boolean).filter((f) => f.verdict && f.verdict.isReal)",
+  "return { confirmed, total: confirmed.length }",
+  "",
+].join("\n");
+
+export const STARTER_LIBRARY = [
+  { name: "review", source: REVIEW },
+];
+
+// Write each starter into `dir` only when the target file is absent.
+// fs: { existsSync, mkdirSync, writeFileSync }. Returns names actually written.
+export function seedLibrary(dir, fs) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const seeded = [];
+  for (const { name, source } of STARTER_LIBRARY) {
+    const p = join(dir, name + ".js");
+    if (fs.existsSync(p)) continue;
+    fs.writeFileSync(p, source);
+    seeded.push(name);
+  }
+  return seeded;
+}
+// <<< OVERDRIVE workflow-library.mjs <<<
+OVERDRIVE_WORKFLOW_LIBRARY_MJS_EOF
 # <<< OVERDRIVE MODULES <<<
 
 # ─── Write wrapper (cli.cjs, runs under Bun) ──────────────────
@@ -1096,6 +1267,12 @@ const llmgodDir = join(homedir(), '.llmgod');
 if (process.argv[2] === 'xray') {
   spawnSync(process.execPath, [join(llmgodDir, 'overdrive', 'panel.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
   process.exit(0);
+}
+
+// Studio: `llmgod workflow <sub>` library manager — handle before launch, then exit.
+if (process.argv[2] === 'workflow') {
+  const r = spawnSync(process.execPath, [join(llmgodDir, 'overdrive', 'workflow-cli.mjs'), ...process.argv.slice(3)], { stdio: 'inherit' });
+  process.exit(r.status ?? 0);
 }
 
 // Note: there used to be a "drift detection" block here that scanned
@@ -1227,6 +1404,12 @@ try {
       const sid = process.env.LLMGOD_SESSION || (process.env.LLMGOD_SESSION = require('crypto').randomUUID());
       const { installProbe } = await import(importUrl(join(llmgodDir, 'overdrive', 'probe.mjs')));
       installProbe(config, llmgodDir, sid);
+    }
+  } catch {}
+  try {
+    if ((config.workflow?.library ?? true)) {
+      const { seedLibrary } = await import(importUrl(join(llmgodDir, 'overdrive', 'workflow-library.mjs')));
+      seedLibrary(join(homedir(), '.claude', 'workflows'), { existsSync, mkdirSync, writeFileSync });
     }
   } catch {}
   require('./cli.original.cjs');

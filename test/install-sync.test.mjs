@@ -13,7 +13,7 @@ function embedded(name) {
   return m ? m[1].trim() : null;
 }
 
-for (const f of ["pricing.mjs", "metering.mjs", "probe.mjs", "statusline.mjs", "panel.mjs", "limits-env.mjs"]) {
+for (const f of ["pricing.mjs", "metering.mjs", "probe.mjs", "statusline.mjs", "panel.mjs", "limits-env.mjs", "workflow-cli.mjs", "workflow-library.mjs"]) {
   test(`install.sh embeds current ${f}`, () => {
     expect(embedded(f)).toBe(mod(f));
   });
@@ -24,6 +24,11 @@ test("cli.cjs wires limits env, probe, and xray dispatch", () => {
   expect(sh).toContain("installProbe(");
   expect(sh).toContain("process.argv[2] === 'xray'");
   expect(sh).toContain("pathToFileURL"); // cross-platform dynamic import
+});
+
+test("cli.cjs wires the workflow subcommand + library seeding", () => {
+  expect(sh).toContain("process.argv[2] === 'workflow'");
+  expect(sh).toContain("seedLibrary(");
 });
 
 test("patch.mjs includes the confirmed OVERDRIVE L3 patches", () => {
