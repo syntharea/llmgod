@@ -100,15 +100,20 @@ A new module `overdrive/workflow-cli.mjs`, dispatched from the wrapper when
 | Command | Behavior |
 |---------|----------|
 | `llmgod workflow ls` | list `~/.claude/workflows/*.js` (name, description from `meta`, source: builtin/user) + project `./.claude/workflows/*.js` |
-| `llmgod workflow run <name> [--args <json>]` | resolve `<name>.js`, hand off to Claude Code's own named-workflow path by launching `claude` with the documented invocation (the manager does **not** re-implement the engine) |
+| `llmgod workflow run <name> [--args <json>]` | resolve `<name>.js`, hand off to Claude Code's own named-workflow path (the manager does **not** re-implement the engine). *Deferred past M1 — needs a headless-launch path; in M1 you run a workflow via the in-session `Workflow({name})` tool* |
 | `llmgod workflow new <name>` | scaffold `~/.claude/workflows/<name>.js` from a template (valid `meta` literal + sample phase/agent) |
-| `llmgod workflow save <runId> <name>` | copy the script of a past run (from its journal `script`/`scriptPath`) into the library as `<name>.js` |
+| `llmgod workflow save <runId> <name>` | copy the script of a past run (from its journal `script`/`scriptPath`) into the library as `<name>.js`. *Deferred past M1 — needs Pillar 2 run discovery* |
 | `llmgod workflow rm <name>` | remove a library file (only llmgod-managed / confirmed) |
 
+> **M1 scope (refined during planning):** M1 ships `ls` / `new` / `rm` / `help` only; `run` and
+> `save` are deferred to later milestones (see §12 and the M1 plan). M1's curated library ships
+> **`review.js` only** — `research.js` / `understand.js` are trivial later additions (one
+> `STARTER_LIBRARY` entry each, no code change).
+
 **Curated starter library** (seeded once, never-clobber, only when the file is absent):
-- `review.js` — changed-files review → adversarial verify (the canonical pipeline pattern)
-- `research.js` — multi-source web sweep → dedupe → synthesize
-- `understand.js` — parallel readers over subsystems → structured map
+- `review.js` — changed-files review → adversarial verify (the canonical pipeline pattern) — **ships in M1**
+- `research.js` — multi-source web sweep → dedupe → synthesize — *later*
+- `understand.js` — parallel readers over subsystems → structured map — *later*
 Each ships as a self-contained, parameterized (`args`) script with a pure-literal `meta`.
 
 Seeding is gated by `config.workflow.library !== false` and follows the same never-clobber
@@ -268,8 +273,10 @@ All keys optional; absent ⇒ current behavior byte-for-byte.
 ## 12. Milestones (each implemented via a parallel workflow)
 M1–M3 target **macOS/Linux only** (install.sh); Windows is a dedicated follow-on (decision
 R5 = sh-first, §13).
-- **M1 — usable now, zero patch:** Pillar 1 (library + manager) + Pillar 4 (per-workflow
-  X-ray). Pure L2; ships the visible win first.
+- **M1 — usable now, zero patch:** Pillar 1 (library + manager: `ls`/`new`/`rm`/`help`, curated
+  `review` seed). Pure L2; ships the visible win first. *(Planning refinement: Pillar 4
+  per-workflow X-ray depends on Pillar 2's run discovery and moved to M2; `run`/`save` deferred
+  likewise — see §4 note.)*
 - **M2 — persistence + L1 power:** Pillar 2 (cross-session history/resume) + Pillar 3 L1
   (fanoutModel) + Pillar 3 nesting patch (6.2).
 - **M3 — deep power + cache:** Pillar 3 concurrency re-fixture (6.3) + lifetime (6.4) +
