@@ -3,8 +3,8 @@ import { join } from "path";
 
 // Curated starter workflows seeded into ~/.claude/workflows/ (never-clobber).
 // IMPORTANT: keep each `source` free of backticks and ${ } so it survives being
-// stored in this template literal AND embedded into install.sh's single-quoted
-// heredoc unchanged.
+// stored in this module's string array AND embedded into install.sh's
+// single-quoted heredoc unchanged.
 const REVIEW = [
   "export const meta = {",
   "  name: 'review',",

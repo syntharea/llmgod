@@ -25,3 +25,17 @@ test("seedLibrary writes absent files and never clobbers existing", () => {
   // a non-pre-existing starter (if any besides review) gets written:
   for (const { name } of STARTER_LIBRARY) if (name !== "review") expect(seeded).toContain(name);
 });
+
+test("seedLibrary writes a starter when absent and mkdirs a missing dir", () => {
+  const store = {}; // dir does not exist yet, no files
+  let madeDir = false;
+  const fs = {
+    existsSync: (p) => p in store || (store["/wf"] && p.startsWith("/wf/") && p.slice(4) in store["/wf"]),
+    mkdirSync: (p) => { madeDir = true; store[p] = {}; },
+    writeFileSync: (p, c) => { (store["/wf"] ??= {})[p.slice(4)] = c; },
+  };
+  const seeded = seedLibrary("/wf", fs);
+  expect(madeDir).toBe(true);                              // missing dir created
+  expect(seeded).toContain("review");                     // absent starter written
+  expect(store["/wf"]["review.js"]).toContain("name: 'review'");
+});
