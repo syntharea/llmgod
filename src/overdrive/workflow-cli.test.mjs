@@ -64,3 +64,59 @@ test("scaffoldWorkflow emits a runnable skeleton with a pure-literal meta", () =
   expect(s).toContain("await agent(");
   expect(s).toContain("phase(");
 });
+
+import { runWorkflowCli } from "./workflow-cli.mjs";
+
+function harness(files) {
+  const store = JSON.parse(JSON.stringify(files)); // { "<dir>": { "<file>": "<contents>" } }
+  let outText = "", errText = "";
+  const dirOf = (p) => p.slice(0, p.lastIndexOf("/"));
+  const baseOf = (p) => p.slice(p.lastIndexOf("/") + 1);
+  const fs = {
+    existsSync: (p) => p in store || (dirOf(p) in store && baseOf(p) in store[dirOf(p)]),
+    readdirSync: (p) => Object.keys(store[p] || {}),
+    readFileSync: (p) => store[dirOf(p)][baseOf(p)],
+    writeFileSync: (p, c) => { (store[dirOf(p)] ??= {})[baseOf(p)] = c; },
+    unlinkSync: (p) => { delete store[dirOf(p)][baseOf(p)]; },
+    mkdirSync: (p) => { store[p] ??= {}; },
+  };
+  const code = (argv) => runWorkflowCli({
+    argv, homeDir: "/home/u", cwd: "/proj",
+    out: (s) => { outText += s; }, err: (s) => { errText += s; }, fs,
+  });
+  return { code, store, out: () => outText, err: () => errText };
+}
+
+test("ls prints user + project workflows", () => {
+  const h = harness({ "/home/u/.claude/workflows": { "review.js": `export const meta = { name: 'review', description: 'R' }` } });
+  expect(h.code(["ls"])).toBe(0);
+  expect(h.out()).toContain("review");
+  expect(h.out()).toContain("user");
+});
+
+test("new creates a file, refuses to clobber", () => {
+  const h = harness({});
+  expect(h.code(["new", "demo"])).toBe(0);
+  expect(h.store["/home/u/.claude/workflows"]["demo.js"]).toContain("name: 'demo'");
+  expect(h.code(["new", "demo"])).toBe(1); // already exists
+  expect(h.err()).toContain("exists");
+});
+
+test("new rejects an invalid name", () => {
+  const h = harness({});
+  expect(h.code(["new", "../evil"])).toBe(1);
+  expect(h.err()).toContain("invalid");
+});
+
+test("rm deletes an existing user workflow, errors when absent", () => {
+  const h = harness({ "/home/u/.claude/workflows": { "x.js": "export const meta = { name: 'x' }" } });
+  expect(h.code(["rm", "x"])).toBe(0);
+  expect(h.store["/home/u/.claude/workflows"]["x.js"]).toBeUndefined();
+  expect(h.code(["rm", "x"])).toBe(1);
+});
+
+test("no/unknown subcommand prints usage and returns 0", () => {
+  const h = harness({});
+  expect(h.code([])).toBe(0);
+  expect(h.out()).toContain("llmgod workflow");
+});

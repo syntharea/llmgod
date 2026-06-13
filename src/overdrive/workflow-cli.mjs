@@ -48,3 +48,64 @@ export function scaffoldWorkflow(name) {
     "",
   ].join("\n");
 }
+
+const USAGE = [
+  "llmgod workflow — manage the Claude Code workflow library",
+  "",
+  "  ls                list user + project workflows",
+  "  new <name>        scaffold ~/.claude/workflows/<name>.js",
+  "  rm  <name>        remove ~/.claude/workflows/<name>.js",
+  "",
+  "Run a workflow from inside Claude Code with: Workflow({ name: '<name>' })",
+  "",
+].join("\n");
+
+// deps: { argv (after 'workflow'), homeDir, cwd, out, err, fs }. Returns exit code.
+export function runWorkflowCli({ argv, homeDir, cwd, out, err, fs }) {
+  const userDir = join(homeDir, ".claude", "workflows");
+  const projDir = join(cwd, ".claude", "workflows");
+  const [sub, arg] = argv;
+
+  if (sub === "ls") {
+    const rows = listWorkflows([{ scope: "user", path: userDir }, { scope: "project", path: projDir }], fs);
+    if (!rows.length) { out("(no workflows; create one with: llmgod workflow new <name>)\n"); return 0; }
+    for (const r of rows) out(`${r.name}\t[${r.scope}]\t${r.description}\n`);
+    return 0;
+  }
+
+  if (sub === "new") {
+    if (!validName(arg)) { err("invalid name: " + arg + "\n"); return 1; }
+    const p = join(userDir, arg + ".js");
+    if (fs.existsSync(p)) { err("exists: " + p + "\n"); return 1; }
+    if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(p, scaffoldWorkflow(arg));
+    out("created " + p + "\n");
+    return 0;
+  }
+
+  if (sub === "rm") {
+    if (!validName(arg)) { err("invalid name: " + arg + "\n"); return 1; }
+    const p = join(userDir, arg + ".js");
+    if (!fs.existsSync(p)) { err("not found: " + p + "\n"); return 1; }
+    fs.unlinkSync(p);
+    out("removed " + p + "\n");
+    return 0;
+  }
+
+  out(USAGE);
+  return 0;
+}
+
+if (import.meta.main) {
+  const fs = await import("fs");
+  const os = await import("os");
+  const code = runWorkflowCli({
+    argv: process.argv.slice(2),
+    homeDir: os.homedir(),
+    cwd: process.cwd(),
+    out: (s) => process.stdout.write(s),
+    err: (s) => process.stderr.write(s),
+    fs,
+  });
+  process.exit(code);
+}
