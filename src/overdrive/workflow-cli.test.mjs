@@ -1,6 +1,6 @@
 // src/overdrive/workflow-cli.test.mjs
 import { test, expect } from "bun:test";
-import { parseWorkflowMeta } from "./workflow-cli.mjs";
+import { parseWorkflowMeta, listWorkflows, scaffoldWorkflow, validName, runWorkflowCli } from "./workflow-cli.mjs";
 
 test("parseWorkflowMeta pulls name and description from a meta literal", () => {
   const src = `export const meta = {\n  name: 'review',\n  description: 'Review the diff',\n  phases: [],\n}`;
@@ -15,8 +15,6 @@ test("parseWorkflowMeta returns null when no name", () => {
   expect(parseWorkflowMeta("const x = 1")).toBeNull();
   expect(parseWorkflowMeta(123)).toBeNull();
 });
-
-import { listWorkflows } from "./workflow-cli.mjs";
 
 function fakeFs(files) {
   // files: { "<dir>": { "<file>": "<contents>" } }
@@ -47,8 +45,6 @@ test("listWorkflows skips missing dirs and non-.js files", () => {
   expect(rows.map((r) => r.name)).toEqual(["a"]);
 });
 
-import { scaffoldWorkflow, validName } from "./workflow-cli.mjs";
-
 test("validName accepts kebab/alnum, rejects path-y or empty", () => {
   expect(validName("review")).toBe(true);
   expect(validName("my-flow_2")).toBe(true);
@@ -64,8 +60,6 @@ test("scaffoldWorkflow emits a runnable skeleton with a pure-literal meta", () =
   expect(s).toContain("await agent(");
   expect(s).toContain("phase(");
 });
-
-import { runWorkflowCli } from "./workflow-cli.mjs";
 
 function harness(files) {
   const store = JSON.parse(JSON.stringify(files)); // { "<dir>": { "<file>": "<contents>" } }
@@ -92,6 +86,12 @@ test("ls prints user + project workflows", () => {
   expect(h.code(["ls"])).toBe(0);
   expect(h.out()).toContain("review");
   expect(h.out()).toContain("user");
+});
+
+test("ls on an empty library prints the no-workflows hint and returns 0", () => {
+  const h = harness({});
+  expect(h.code(["ls"])).toBe(0);
+  expect(h.out()).toContain("no workflows");
 });
 
 test("new creates a file, refuses to clobber", () => {
