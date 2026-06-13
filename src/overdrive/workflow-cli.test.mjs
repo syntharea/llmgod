@@ -15,3 +15,34 @@ test("parseWorkflowMeta returns null when no name", () => {
   expect(parseWorkflowMeta("const x = 1")).toBeNull();
   expect(parseWorkflowMeta(123)).toBeNull();
 });
+
+import { listWorkflows } from "./workflow-cli.mjs";
+
+function fakeFs(files) {
+  // files: { "<dir>": { "<file>": "<contents>" } }
+  const dirOf = (p) => p.slice(0, p.lastIndexOf("/"));
+  const baseOf = (p) => p.slice(p.lastIndexOf("/") + 1);
+  return {
+    existsSync: (p) => p in files || (dirOf(p) in files && baseOf(p) in files[dirOf(p)]),
+    readdirSync: (p) => Object.keys(files[p] || {}),
+    readFileSync: (p) => files[dirOf(p)][baseOf(p)],
+  };
+}
+
+test("listWorkflows lists .js files from user and project dirs with parsed meta", () => {
+  const fs = fakeFs({
+    "/u/wf": { "review.js": `export const meta = { name: 'review', description: 'Review diff' }`, "notes.txt": "x" },
+    "/p/wf": { "deploy.js": `export const meta = { name: 'deploy' }` },
+  });
+  const rows = listWorkflows([{ scope: "user", path: "/u/wf" }, { scope: "project", path: "/p/wf" }], fs);
+  expect(rows).toEqual([
+    { name: "review", description: "Review diff", scope: "user", path: "/u/wf/review.js" },
+    { name: "deploy", description: "", scope: "project", path: "/p/wf/deploy.js" },
+  ]);
+});
+
+test("listWorkflows skips missing dirs and non-.js files", () => {
+  const fs = fakeFs({ "/u/wf": { "a.js": `export const meta = { name: 'a' }`, "b.md": "x" } });
+  const rows = listWorkflows([{ scope: "user", path: "/u/wf" }, { scope: "project", path: "/nope" }], fs);
+  expect(rows.map((r) => r.name)).toEqual(["a"]);
+});
